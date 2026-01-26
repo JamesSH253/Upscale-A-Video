@@ -1,0 +1,669 @@
+import React, { useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Check,
+  ChevronLeft,
+  Filter,
+  Plus,
+  Search,
+  Settings,
+  Sparkles,
+  Users,
+  Waves,
+  Briefcase,
+  Snowflake,
+  Mountain,
+  Bike,
+  ListChecks,
+  History,
+  ArrowRight,
+  X,
+  GripVertical,
+} from "lucide-react";
+
+const CREW = [
+  { id: "lera", label: "Лера" },
+  { id: "ilya", label: "Илья" },
+  { id: "both", label: "Лера + Илья" },
+];
+
+const MODES = [
+  { id: "sea_summer", title: "Лето · Море", icon: Waves, blurb: "Солнце, вода, минимум стресса", tone: "from-white/75 to-white/20" },
+  { id: "weekend_summer", title: "Лето · Уикенд", icon: Sparkles, blurb: "Коротко, быстро, по делу", tone: "from-white/75 to-white/20" },
+  { id: "weekend_winter", title: "Зима · Уикенд", icon: Snowflake, blurb: "Тепло одеться — остальное приложится", tone: "from-white/75 to-white/20" },
+  { id: "ski_winter", title: "Зима · Лыжи", icon: Mountain, blurb: "Экипировка, здоровье, документы", tone: "from-white/75 to-white/20" },
+  { id: "moto_summer", title: "Лето · Мото", icon: Bike, blurb: "Лёгкость, безопасность, компактность", tone: "from-white/75 to-white/20" },
+  { id: "biz_summer", title: "Командировка · Лето", icon: Briefcase, blurb: "Работа, техника, документы", tone: "from-white/75 to-white/20" },
+  { id: "biz_winter", title: "Командировка · Зима", icon: Briefcase, blurb: "Работа + слой тепла", tone: "from-white/75 to-white/20" },
+];
+
+const TEMPLATE = {
+  sea_summer: {
+    common: {
+      Документы: ["Паспорта", "Страховки, распечатки"],
+      Деньги: ["Наличные", "Карточки"],
+      Электроника: ["Айпады", "Наушники", "Пауэрбанк", "Телефоны", "Зарядки", "Переходник для розеток"],
+      Гигиена: ["Очки для чтения", "Расчески", "Зубные щетки + паста", "Бритва + пена"],
+      Здоровье: ["Мукофальк", "Аптечка"],
+    },
+    ilya: {
+      Одежда: ["Кроссовки", "Носки", "Трусы", "Джинсы", "Поло", "Футболка"],
+      Личное: ["Чесалка"],
+    },
+    lera: {
+      Одежда: ["Купальник", "Лёгкая одежда"],
+      Личное: ["Косметичка", "Солнцезащитный крем"],
+    },
+  },
+  ski_winter: {
+    common: {
+      Документы: ["Паспорта", "Страховка", "Бронь", "Перевод справки (Лера)", "Международные права"],
+      Деньги: ["Карточки", "Наличные"],
+      Электроника: ["Айпады", "Камера", "Пауэрбанк", "Наушники", "Зарядка в прикуриватель", "Зарядки все"],
+      Гигиена: ["Зубные щетки + паста", "Расчески", "Бритва + пена", "Ножницы", "Зубочистки"],
+      Здоровье: ["Аптечка", "Мукофальк + закофальк", "Бады", "Линзы"],
+      Комфорт: ["Четки", "Свечка + зажигалка", "Блокнот", "Подарки", "Сумка", "Палка чесалка"],
+      Экипировка: ["Шлемы 2 + Очки", "Перчатки горнолыжные", "Варежки горнолыжные", "Балаклавы 2", "Термобельё", "Носки горнолыжные"],
+    },
+    ilya: {
+      Одежда: ["Куртка Илья", "Горнолыжные штаны", "Поло", "Футболки", "Трусы", "Носки", "Плавки"],
+    },
+    lera: {
+      Одежда: ["Куртка горнолыжная Лера", "Горнолыжные штаны 2", "Шапка", "Купальник"],
+      Уход: ["Средства для укладки волос", "Средства для лица: тоник, мицеллярная вода, крем, маска"],
+    },
+  },
+};
+
+function clamp(n, a, b) {
+  return Math.max(a, Math.min(b, n));
+}
+
+function AppShell({ children }) {
+  return (
+    <div className="relative min-h-screen bg-gradient-to-b from-[#0375B4] via-[#0B6D8F] to-[#EBEFF2]">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-24 left-1/2 h-[420px] w-[520px] -translate-x-1/2 rounded-[999px] bg-white/18 blur-3xl" />
+        <div className="absolute top-40 -left-24 h-[360px] w-[420px] rounded-[999px] bg-white/12 blur-3xl" />
+        <div className="absolute top-56 -right-24 h-[380px] w-[440px] rounded-[999px] bg-white/10 blur-3xl" />
+      </div>
+      <div className="relative mx-auto max-w-md px-4 pb-28 pt-6">{children}</div>
+    </div>
+  );
+}
+
+
+
+function makeItemsFromTemplate(modeId, crewId) {
+  const t = TEMPLATE[modeId] || TEMPLATE.sea_summer;
+  const blocks = [];
+
+  const pushBlock = (owner, title, items) => {
+    blocks.push({
+      owner,
+      title,
+      items: items.map((name) => ({
+        id: `${owner}-${title}-${name}`,
+        name,
+        owner,
+        done: false,
+        critical: owner === "common" ? "важно" : "комфорт",
+        bag: "checked",
+      })),
+    });
+  };
+
+  Object.entries(t.common || {}).forEach(([title, items]) => pushBlock("common", title, items));
+  if (crewId === "ilya" || crewId === "both") Object.entries(t.ilya || {}).forEach(([title, items]) => pushBlock("ilya", title, items));
+  if (crewId === "lera" || crewId === "both") Object.entries(t.lera || {}).forEach(([title, items]) => pushBlock("lera", title, items));
+
+  return blocks;
+}
+
+function GhostIconButton({ onClick, children, label }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-2xl border border-white/25 bg-white/14 px-3 py-2 text-white/90 shadow-sm hover:bg-white/20 active:scale-[0.99]"
+      aria-label={label}
+    >
+      {children}
+    </button>
+  );
+}
+
+function FloatingAction({ onClick, label, Icon }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className="fixed bottom-[92px] right-4 z-20 mx-auto flex h-12 w-12 items-center justify-center rounded-[18px] bg-[#C62433] text-white shadow-[0_18px_50px_rgba(198,36,51,0.28)] active:scale-[0.98]"
+    >
+      <Icon className="h-5 w-5" />
+    </button>
+  );
+}
+
+function TopBar({ title, left, right }) {
+  return (
+    <div className="mb-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {left}
+          <div className="text-[13px] font-semibold tracking-tight text-white/95">{title}</div>
+        </div>
+        <div className="flex items-center gap-2">{right}</div>
+      </div>
+      <div className="mt-3 h-px bg-white/15" />
+    </div>
+  );
+}
+
+function Pill({ active, children, onClick, icon: Icon }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm transition shadow-sm " +
+        (active
+          ? "bg-[#C62433] text-white"
+          : "bg-white/55 text-slate-800 hover:bg-white/70 border border-white/40")
+      }
+    >
+      {Icon ? <Icon className="h-4 w-4" /> : null}
+      <span className="whitespace-nowrap">{children}</span>
+    </button>
+  );
+}
+
+function SectionHeader({ title, subtitle, right }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <div className="text-[22px] font-semibold tracking-tight text-white drop-shadow-sm">{title}</div>
+        {subtitle ? <div className="mt-1 text-sm text-white/85 leading-snug">{subtitle}</div> : null}
+      </div>
+      {right}
+    </div>
+  );
+}
+
+function ProgressRing({ value }) {
+  const v = clamp(value, 0, 100);
+  const r = 18;
+  const c = 2 * Math.PI * r;
+  const off = c - (v / 100) * c;
+  return (
+    <div className="relative h-12 w-12">
+      <svg className="h-12 w-12 -rotate-90" viewBox="0 0 48 48">
+        <circle cx="24" cy="24" r={r} fill="none" strokeWidth="4" className="stroke-white/30" />
+        <circle
+          cx="24"
+          cy="24"
+          r={r}
+          fill="none"
+          strokeWidth="4"
+          className="stroke-[#C62433]"
+          strokeDasharray={c}
+          strokeDashoffset={off}
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white">{Math.round(v)}%</div>
+    </div>
+  );
+}
+
+function OwnerBadge({ owner }) {
+  const map = {
+    common: { label: "Общее", cls: "bg-slate-900 text-white" },
+    lera: { label: "Лера", cls: "bg-white text-slate-900 border border-slate-200" },
+    ilya: { label: "Илья", cls: "bg-white text-slate-900 border border-slate-200" },
+  };
+  const m = map[owner] || map.common;
+  return <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${m.cls}`}>{m.label}</span>;
+}
+
+function ChecklistItem({ item, onToggle }) {
+  return (
+    <motion.div
+      layout
+      className={
+        "flex items-start gap-3 rounded-[22px] border px-4 py-3 transition " +
+        "shadow-[0_10px_28px_rgba(0,0,0,0.10)] " +
+        (item.done ? "border-white/35 bg-white/55" : "border-white/45 bg-white/75")
+      }
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        className={
+          "mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full border transition " +
+          (item.done
+            ? "bg-[#C62433] border-[#C62433] text-white"
+            : "bg-white/90 border-white/70 text-transparent hover:border-white")
+        }
+        aria-label="Toggle"
+      >
+        <Check className="h-4 w-4" />
+      </button>
+
+      <div className="min-w-0 flex-1">
+        <div className={"text-sm font-medium leading-snug " + (item.done ? "text-slate-700 line-through" : "text-slate-900")}>
+          {item.name}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <OwnerBadge owner={item.owner} />
+          <span className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-medium text-slate-700">{item.critical}</span>
+          <span className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-medium text-slate-700">{item.bag === "carry" ? "Ручная кладь" : "Чемодан"}</span>
+        </div>
+      </div>
+
+      <div className="pt-1 text-slate-400">
+        <GripVertical className="h-5 w-5" />
+      </div>
+    </motion.div>
+  );
+}
+
+function Modal({ open, onClose, title, children }) {
+  return (
+    <AnimatePresence>
+      {open ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-30 flex items-end justify-center bg-black/35 p-3"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ y: 24, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 24, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 380, damping: 34 }}
+            className="w-full max-w-md rounded-[30px] bg-white shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 pt-5">
+              <div className="text-base font-semibold text-slate-900">{title}</div>
+              <button type="button" onClick={onClose} className="rounded-full p-2 text-slate-600 hover:bg-slate-100" aria-label="Close">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="px-5 pb-6 pt-3">{children}</div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
+function Toggle({ value, onChange, labelLeft, labelRight }) {
+  return (
+    <button type="button" onClick={() => onChange(!value)} className="w-full rounded-[22px] border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-medium text-slate-700">{labelLeft}</div>
+        <div className="relative h-7 w-12 rounded-full bg-slate-200">
+          <motion.div layout className="absolute top-0.5 h-6 w-6 rounded-full bg-white shadow" style={{ left: value ? 24 : 2 }} />
+        </div>
+        <div className="text-sm font-medium text-slate-700">{labelRight}</div>
+      </div>
+    </button>
+  );
+}
+
+function BottomNav({ tab, setTab }) {
+  const Item = ({ id, label, Icon }) => (
+    <button
+      type="button"
+      onClick={() => setTab(id)}
+      className={
+        "flex flex-col items-center justify-center gap-1 py-2 text-xs transition " +
+        (tab === id ? "text-slate-900" : "text-slate-600")
+      }
+    >
+      <Icon className="h-5 w-5" />
+      <span>{label}</span>
+    </button>
+  );
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-20 mx-auto max-w-md">
+      <div className="mx-3 mb-3 rounded-[24px] border border-white/40 bg-white/75 backdrop-blur-xl shadow-[0_14px_50px_rgba(0,0,0,0.14)]">
+        <div className="grid grid-cols-3">
+          <Item id="new" label="Новая" Icon={Plus} />
+          <Item id="check" label="Сборы" Icon={ListChecks} />
+          <Item id="history" label="История" Icon={History} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function TravelChecklistPrototype() {
+  const [tab, setTab] = useState("new");
+
+  const [crew, setCrew] = useState("both");
+  const [mode, setMode] = useState("sea_summer");
+  const [days, setDays] = useState(7);
+  const [tripName, setTripName] = useState("Море");
+
+  const [blocks, setBlocks] = useState(() => makeItemsFromTemplate("sea_summer", "both"));
+
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [showOnlyCritical, setShowOnlyCritical] = useState(false);
+  const [showOnlyMine, setShowOnlyMine] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const effectiveOwnerFilter = useMemo(() => {
+    if (!showOnlyMine) return null;
+    if (crew === "both") return null;
+    return crew;
+  }, [showOnlyMine, crew]);
+
+  const flatItems = useMemo(() => blocks.flatMap((b) => b.items.map((it) => ({ ...it, _section: b.title }))), [blocks]);
+  const doneCount = useMemo(() => flatItems.filter((i) => i.done).length, [flatItems]);
+  const totalCount = flatItems.length;
+  const progress = totalCount ? (doneCount / totalCount) * 100 : 0;
+
+  const filteredBlocks = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return blocks
+      .map((b) => {
+        let items = b.items;
+        if (showOnlyCritical) items = items.filter((it) => it.critical === "важно");
+        if (effectiveOwnerFilter) items = items.filter((it) => it.owner === effectiveOwnerFilter);
+        if (q) items = items.filter((it) => it.name.toLowerCase().includes(q));
+        return { ...b, items };
+      })
+      .filter((b) => b.items.length > 0);
+  }, [blocks, search, showOnlyCritical, effectiveOwnerFilter]);
+
+  const currentModeMeta = useMemo(() => MODES.find((m) => m.id === mode) || MODES[0], [mode]);
+
+  function startTrip(nextModeId = mode, nextCrew = crew) {
+    setBlocks(makeItemsFromTemplate(nextModeId, nextCrew));
+    setTab("check");
+  }
+
+  function toggleItem(itemId) {
+    setBlocks((prev) =>
+      prev.map((b) => ({
+        ...b,
+        items: b.items.map((it) => (it.id === itemId ? { ...it, done: !it.done } : it)),
+      }))
+    );
+  }
+
+  return (
+    <>
+      <AppShell>
+        {tab === "new" ? (
+          <div>
+            <TopBar
+              title="Packing"
+              right={
+                <GhostIconButton label="Settings" onClick={() => setFiltersOpen(true)}>
+                  <Settings className="h-5 w-5" />
+                </GhostIconButton>
+              }
+            />
+
+            <SectionHeader title="Новая поездка" subtitle="Выберите состав и сценарий. Список соберётся сам." right={<ProgressRing value={progress} />} />
+
+            <div className="mt-4 flex gap-2 overflow-auto pb-1">
+              {CREW.map((c) => (
+                <Pill
+                  key={c.id}
+                  active={crew === c.id}
+                  onClick={() => {
+                    setCrew(c.id);
+                    setBlocks(makeItemsFromTemplate(mode, c.id));
+                  }}
+                  icon={c.id === "both" ? Users : null}
+                >
+                  {c.label}
+                </Pill>
+              ))}
+            </div>
+
+            <Card className="mt-4 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="text-xs font-semibold text-slate-600">Шаг 1 из 2</div>
+                <div className="text-xs text-slate-500">Состав и срок</div>
+              </div>
+              <div className="text-sm font-semibold text-slate-900">Длительность</div>
+              <div className="mt-2 flex items-center gap-3">
+                <button type="button" className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm" onClick={() => setDays((d) => clamp(d - 1, 1, 45))}>
+                  −
+                </button>
+                <div className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900">{days} дней</div>
+                <button type="button" className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm" onClick={() => setDays((d) => clamp(d + 1, 1, 45))}>
+                  +
+                </button>
+              </div>
+              <div className="mt-3 text-xs text-slate-600">Используется для подсказок (позже: количество одежды и расходников).</div>
+            </Card>
+
+            <div className="mt-4">
+              <div className="mb-2 text-sm font-semibold text-white/95">Сценарий</div>
+              <div className="grid grid-cols-1 gap-3">
+                {MODES.map((m) => {
+                  const Icon = m.icon;
+                  const active = m.id === mode;
+                  return (
+                    <motion.button
+                      key={m.id}
+                      layout
+                      type="button"
+                      onClick={() => {
+                        setMode(m.id);
+                        setTripName(m.title);
+                        setBlocks(makeItemsFromTemplate(m.id, crew));
+                      }}
+                      className={
+                        "relative overflow-hidden rounded-3xl border p-4 text-left transition shadow-[0_10px_30px_rgba(0,0,0,0.10)] " +
+                        (active ? "border-[#C62433]" : "border-white/45 hover:border-white/65")
+                      }
+                    >
+                      <div className={`absolute inset-0 bg-gradient-to-b ${m.tone} opacity-70`} />
+                      <div className="relative flex items-start gap-3">
+                        <div className={"rounded-2xl border bg-white/80 p-2 shadow-sm " + (active ? "border-[#C62433]" : "border-white/60")}>
+                          <Icon className="h-5 w-5 text-slate-900" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-base font-semibold tracking-tight text-slate-900">{m.title}</div>
+                          <div className="mt-1 text-sm text-slate-700 leading-snug">{m.blurb}</div>
+                        </div>
+                        <div className="pt-1 text-slate-500">
+                          <ArrowRight className="h-5 w-5" />
+                        </div>
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <button
+                type="button"
+                onClick={() => startTrip(mode, crew)}
+                className="w-full rounded-3xl bg-[#C62433] px-5 py-4 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(198,36,51,0.25)] hover:brightness-95"
+              >
+                Начать сборы
+              </button>
+              <div className="mt-2 text-center text-xs text-white/80">Сервис офлайн, без аккаунтов. Два человека — один порядок.</div>
+            </div>
+          </div>
+        ) : null}
+
+        {tab === "check" ? (
+          <div>
+            <TopBar
+              title={tripName || "Сборы"}
+              left={
+                <GhostIconButton label="Back" onClick={() => setTab("new")}>
+                  <ChevronLeft className="h-5 w-5" />
+                </GhostIconButton>
+              }
+              right={
+                <GhostIconButton label="Filter" onClick={() => setFiltersOpen(true)}>
+                  <Filter className="h-5 w-5" />
+                </GhostIconButton>
+              }
+            />
+
+            <Card className="p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="text-xs font-semibold text-slate-600">Сборы</div>
+                <div className="text-xs text-slate-500">Фильтры и поиск</div>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">Прогресс сборов</div>
+                  <div className="mt-1 text-xs text-slate-700">
+                    {CREW.find((c) => c.id === crew)?.label} · {currentModeMeta.title} · {days} дней
+                  </div>
+                </div>
+                <ProgressRing value={progress} />
+              </div>
+
+              <div className="mt-4 flex items-center gap-2 rounded-[22px] border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <Search className="h-4 w-4 text-slate-400" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Поиск по вещам"
+                  className="w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 outline-none"
+                />
+              </div>
+
+              <div className="mt-3 flex gap-2 overflow-auto pb-1">
+                <Pill active={!showOnlyCritical} onClick={() => setShowOnlyCritical(false)}>
+                  Всё
+                </Pill>
+                <Pill active={showOnlyCritical} onClick={() => setShowOnlyCritical(true)}>
+                  Только важное
+                </Pill>
+                <Pill active={showOnlyMine} onClick={() => setShowOnlyMine((v) => !v)}>
+                  Моё
+                </Pill>
+              </div>
+            </Card>
+
+            <div className="mt-4 space-y-4">
+            <FloatingAction onClick={() => setFiltersOpen(true)} label="Фильтры" Icon={Filter} />
+              {filteredBlocks.map((b) => (
+                <div key={`${b.owner}-${b.title}`}>
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <OwnerBadge owner={b.owner} />
+                      <div className="text-sm font-semibold text-white">{b.title}</div>
+                    </div>
+                    <div className="text-xs text-white/80">
+                      {b.items.filter((i) => i.done).length}/{b.items.length}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {b.items.map((it) => (
+                      <ChecklistItem key={it.id} item={it} onToggle={() => toggleItem(it.id)} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {filteredBlocks.length === 0 ? (
+                <div className="rounded-3xl border border-white/40 bg-white/70 p-6 text-center text-sm text-slate-700 shadow-sm">
+                  Ничего не найдено.
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {tab === "history" ? (
+          <div>
+            <TopBar
+              title="История"
+              right={
+                <GhostIconButton label="Settings" onClick={() => setFiltersOpen(true)}>
+                  <Settings className="h-5 w-5" />
+                </GhostIconButton>
+              }
+            />
+
+            <SectionHeader
+              title="Последние поездки"
+              subtitle="Демо. В реальном приложении — сохранение в localStorage и быстрый повтор."
+            />
+
+            <div className="mt-4 space-y-3">
+              {["Зима · Лыжи · Лера + Илья", "Лето · Море · Лера + Илья", "Командировка · Зима · Илья"].map((t, idx) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => {
+                    if (idx === 0) {
+                      setMode("ski_winter");
+                      setCrew("both");
+                      setTripName("Зима · Лыжи");
+                      setBlocks(makeItemsFromTemplate("ski_winter", "both"));
+                      setTab("check");
+                    } else {
+                      setMode("sea_summer");
+                      setCrew("both");
+                      setTripName("Лето · Море");
+                      setBlocks(makeItemsFromTemplate("sea_summer", "both"));
+                      setTab("check");
+                    }
+                  }}
+                  className="w-full rounded-3xl border border-white/45 bg-white/70 p-4 text-left shadow-sm hover:bg-white/80"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">{t}</div>
+                      <div className="mt-1 text-xs text-slate-600">Повторить как шаблон</div>
+                    </div>
+                    <ArrowRight className="h-5 w-5 text-slate-500" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <Modal open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Настройки прототипа">
+          <div className="space-y-3">
+            <Toggle value={showOnlyCritical} onChange={setShowOnlyCritical} labelLeft="Всё" labelRight="Важное" />
+            <Toggle value={showOnlyMine} onChange={setShowOnlyMine} labelLeft="Все" labelRight="Моё" />
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-sm font-semibold text-slate-900">О дизайне</div>
+              <div className="mt-2 text-xs text-slate-600 leading-relaxed">Mobile-first. Сдержанная эстетика: море, белая поверхность, красный акцент.</div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setShowOnlyCritical(false);
+                setShowOnlyMine(false);
+                setFiltersOpen(false);
+              }}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
+            >
+              Сбросить фильтры
+            </button>
+          </div>
+        </Modal>
+      </AppShell>
+
+      <BottomNav tab={tab} setTab={setTab} />
+    </>
+  );
+}
